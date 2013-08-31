@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+set -ex
+
+function usage {
+  echo "Usage: documenter DIR" 1>&2
+  exit 1
+}
+
+function _fake_realpath {
+  echo "${PWD}/$1"
+}
+
+REALPATH="$(which realpath || echo _fake_realpath)"
+
+function realpath {
+  "$REALPATH" "$@"
+}
+
+GITROOT="$(realpath "$1" || usage)"
+shift 1 || usage
+test -d "${GITROOT}" || usage
+
+OUTROOT="$(realpath "$1" || usage)"
+shift 1 || usage
+test -d "${OUTROOT}" || usage
+
+TMPROOT="$(mktemp -d -t documenter)"
+TMPENV="${TMPROOT}/env"
+TMPGIT="${TMPROOT}/git"
+mkdir -p "${TMPENV}" "${TMPGIT}"
+cd "${TMPENV}"
+
+pkgs=""
+outs=""
+
+for repo in $(ls "${GITROOT}"); do
+  out="${TMPGIT}/${repo}"
+  outs="${outs} ${out}"
+  git clone --depth 1 --single-branch --branch master "${GITROOT}/${repo}" "${out}"
+  cabal-dev add-source "${out}"
+  for pkg in $(ls "${out}"/*.cabal); do
+    if grep -i '^library' "${out}/${pkg}"; then
+      pkgs="${pkgs} $(basename "${pkg}" .cabal)"
+    fi
+  done
+done
+
+for pkg in $pkgs; do
+  cabal-dev install "${pkg}"
+done
+
+standalone-haddock \
+  --package-db "${PWD}"/cabal-dev/packages-*.conf \
+  --hyperlink-source \
+  -o "${OUTROOT}" \
+  ${outs}
+ 
+rm -rf "${TMPROOT}"
+
