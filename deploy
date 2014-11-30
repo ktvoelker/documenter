@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -e
+exec rsync \
+  --verbose \
+  --checksum \
+  --ignore-times \
+  --recursive \
+  --links \
+  --safe-links \
+  --chmod=u=rwX,go=rX \
+  --exclude=.empty \
+  --delete-after \
+  "$@" \
+  ./build/html/ \
+  karl@gold-bug.karlv.net:/srv/www/haskell/
